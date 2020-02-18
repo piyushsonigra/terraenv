@@ -5,17 +5,23 @@ import sys
 import platform
 import requests
 from zipfile import ZipFile
-from config import DOWNLOAD_PATH, VERSION_FILE
+from commons.config import DOWNLOAD_PATH, VERSION_FILE
+from .list import list_remote
 
 """ Download Required Terraform / Terragrunt Versions """
 
-
-def download_program(program, version):
+def download_program(args, program, version):
 
     operating_sys = sys.platform
-
     # Upsert download path
     not os.path.exists(DOWNLOAD_PATH) and os.mkdir(DOWNLOAD_PATH)
+
+    available_versions = list_remote(args)
+    if version not in available_versions:
+        print("Version '" + version + "' is not right available " + program + " version.\
+            \nYou can check right available versions by running 'terraenv terraform/terragrunt list remote'.\
+            \nFor more informaion, Please refer terraenv document https://github.com/aaratn/terraenv#terraenv-terraformterragrunt-list-remote.\n")
+        sys.exit(1)
 
     if program == "terraform":
         url = "https://releases.hashicorp.com" + "/terraform/" + version + \
@@ -56,37 +62,36 @@ def download_program(program, version):
 
 """ Installs Required Terraform / Terragrunt Versions """
 
-
 def install(args):
 
     program = args.program
     version = args.version
-
+    if version == 'latest':
+        version=list_remote(args).pop()
     if not version and os.path.exists(VERSION_FILE):
         load_dotenv(dotenv_path=VERSION_FILE)
         version = (os.getenv(program.upper()))
 
     if not version:
-        print ("Please define version or add that to .terraenv file")
+        print("Please define version or add that to .terraenv file.\
+            \nYou don't need to mention version if you have .terraenv file at current path. \
+            \nFor more informaion, Please refer terraenv document https://github.com/aaratn/terraenv#terraenv-file.\n")
         sys.exit(1)
-
 
     dest_path = DOWNLOAD_PATH + program + "_" + version
 
     if program == "terraform":
-        download_program(program, version)
+        download_program(args, program, version)
 
     elif program == "terragrunt":
-        download_program(program, version)
+        download_program(args, program, version)
 
     else:
         raise Exception(
             'Invalid Arguement !! It should be either terraform / terragrunt')
 
     if not os.access('/usr/local/bin', os.W_OK):
-        print("Error: User doesn't have write permission of /usr/local/bin directory.\
-            \n\nRun below command to grant permission and rerun 'terraenv install' command.\
-            \nsudo chown -R $(whoami) /usr/local/bin\n")
+        print("Error: User doesn't have write permission for /usr/local/bin directory.")
         sys.exit(1)
 
     try:
@@ -96,3 +101,4 @@ def install(args):
         pass
 
     os.symlink(dest_path, "/usr/local/bin/" + program )
+    print(program + " version is set to " + version)
